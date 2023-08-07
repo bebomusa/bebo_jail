@@ -10,7 +10,7 @@ local jailed = {}
 ---@param value any: The value to look for in the table.
 ---@return boolean: Returns true if the value is found in the table, false otherwise.
 local function hasOne(tbl, value)
-	for _, v in pairs(tbl) do
+	for _, v in ipairs(tbl) do
 		if v == value then
 			return true
 		end
@@ -34,25 +34,18 @@ local function getInventory(player)
 	return inventory
 end
 
----@param source number: The source of the command (player ID).
----@param args table: The command arguments passed to the function.
 RegisterCommand("ajail", function(source, args)
-	local id = args[1]
-	local time = tonumber(args[2])
-	if not id or id == "" or not time then return end
+	local id, time, reason = args[1], tonumber(args[2]), table.concat(args, " ", 3)
 
+	if not id or id == "" or not time then return end
 	time = time > 0 and time or 1
 
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
-	if not ply then return end
-
-	if not UseAces then
-		if UseOx and not ply.hasGroup(AllowedGroup) or not UseOx and not hasOne(AllowedGroup, ply.getGroup()) then
-			TriggerClientEvent("chat:addMessage", source, {
-				template = "^1[ ! ] ^0You don\'t have permission to use this command",
-			})
-			return
-		end
+	if not ply or (not UseAces and not (UseOx and ply.hasGroup(AllowedGroup) or not UseOx and hasOne(AllowedGroup, ply.getGroup()))) then
+		TriggerClientEvent("chat:addMessage", source, {
+			template = "^1[ ! ] ^0You don\'t have permission to use this command",
+		})
+		return
 	end
 
 	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
@@ -65,7 +58,6 @@ RegisterCommand("ajail", function(source, args)
 	end
 
 	local identifier = UseOx and targetPly.charid or targetPly.identifier
-
 	if jailed[identifier] then
 		TriggerClientEvent("chat:addMessage", source, {
 			template = "^1[ ! ] ^0Player ^3{0} ^0is already jailed",
@@ -79,11 +71,10 @@ RegisterCommand("ajail", function(source, args)
 		Wait(0)
 		newBucket = math.random(1, 999999)
 	end
+
 	routingBuckets[newBucket] = identifier
 
-	local playerPed = GetPlayerPed(id)
-	local closest = JailedState
-	local jail = Jails[closest]
+	local plyPed, closest, jail = GetPlayerPed(id), JailedState, Jails[JailedState]
 	local inventory = getInventory(targetPly)
 
 	jailed[identifier] = {
@@ -105,15 +96,9 @@ RegisterCommand("ajail", function(source, args)
 	end
 
 	SetPlayerRoutingBucket(id, newBucket)
-	SetEntityCoords(playerPed, jail.insideCoords.x, jail.insideCoords.y, jail.insideCoords.z, true, false, false, false)
+	SetEntityCoords(plyPed, jail.insideCoords.x, jail.insideCoords.y, jail.insideCoords.z, true, false, false, false)
 	Player(id).state:set("jailed", true, true)
 
-	local reasonTbl = {}
-	for i = 3, #args do
-		reasonTbl[#reasonTbl + 1] = args[i]
-	end
-
-	local reason = table.concat(reasonTbl, " ")
 	TriggerClientEvent("chat:addMessage", -1, {
 		template = "^1AdmCmd {0} has been admin jailed by {1} for {2} minute(s), reason: {3}",
 		args = {
@@ -125,20 +110,21 @@ RegisterCommand("ajail", function(source, args)
 	})
 end, UseAces)
 
----@param source number: The source of the command (player ID).
----@param args table: The command arguments passed to the function.
 RegisterCommand("ajailrelease", function(source, args)
 	local id = args[1]
+	local admin = false
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
 	if not ply then return end
 
 	if not UseAces then
-		if UseOx and not ply.hasGroup(AllowedGroup) or not UseOx and not hasOne(AllowedGroup, ply.getGroup()) then
-			TriggerClientEvent("chat:addMessage", source, {
-				template = "^1[ ! ] ^0You don\'t have permission to use this command",
-			})
-			return
-		end
+		admin = UseOx and ply.hasGroup(AllowedGroup) or not UseOx and hasOne(AllowedGroup, ply.getGroup())
+	end
+
+	if not UseAces and not admin then
+		TriggerClientEvent("chat:addMessage", source, {
+			template = "^1[ ! ] ^0You don't have permission to use this command",
+		})
+		return
 	end
 
 	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
@@ -151,44 +137,35 @@ RegisterCommand("ajailrelease", function(source, args)
 	end
 
 	local identifier = UseOx and targetPly.charid or targetPly.identifier
-
 	local jailData = jailed[identifier]
-	if not jailData then
-		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed",
-			args = { id },
-		})
-		return
-	end
 
-	if not jailData.active then
+	if not jailData or not jailData.active then
 		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0Player ^3{0} ^0is not logged in",
+			template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed or not logged in",
 			args = { id },
 		})
 		return
 	end
 
 	local jail = Jails[jailData.jail]
+	local plyPed = GetPlayerPed(id)
 
-	SetEntityCoords(GetPlayerPed(id), jail.outsideCoords.x, jail.outsideCoords.y, jail.outsideCoords.z, true, false, false, false)
-
+	SetEntityCoords(plyPed, jail.outsideCoords.x, jail.outsideCoords.y, jail.outsideCoords.z, true, false, false, false)
 	SetPlayerRoutingBucket(id, 0)
 	Player(id).state:set("jailed", false, true)
 
 	local inventory = getInventory(targetPly)
 	for k, v in pairs(inventory) do
-		exports.ox_inventory:RemoveItem(targetPly.source, k, v)
+		if not jail.blacklistedItems[k] then
+			exports.ox_inventory:RemoveItem(targetPly.source, k, v)
+		end
 	end
 
 	for k, v in pairs(jailData.inventory) do
 		exports.ox_inventory:AddItem(targetPly.source, k, v)
 	end
 
-	for k, v in pairs(routingBuckets) do
-		if v == identifier then routingBuckets[k] = nil end
-	end
-
+	routingBuckets[identifier] = nil
 	jailed[identifier] = nil
 	MySQL.query("DELETE FROM jail WHERE identifier = ?", { identifier })
 
@@ -201,45 +178,79 @@ RegisterCommand("ajailrelease", function(source, args)
 	})
 end, UseAces)
 
----@param source number: The source of the command (player ID).
----@param args table: The command arguments passed to the function.
 RegisterCommand("ajailtime", function(source, args)
-	local id = args[1]
+    local id = args[1]
+    local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
+
+    if not ply then return end
+
+    if not UseAces then
+        local allowed = false
+
+        if UseOx then
+            allowed = ply.hasGroup(AllowedGroup)
+        else
+            allowed = hasOne(AllowedGroup, ply.getGroup())
+        end
+
+        if not allowed then
+            TriggerClientEvent("chat:addMessage", source, {
+                template = "^1[ ! ] ^0You don\'t have permission to use this command",
+            })
+            return
+        end
+    end
+
+    local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
+    if not targetPly then
+        TriggerClientEvent("chat:addMessage", source, {
+            template = "^1[ ! ] ^0Player ^3{0} ^0is not online",
+            args = { id },
+        })
+        return
+    end
+
+    local jailData = jailed[UseOx and targetPly.charid or targetPly.identifier]
+    if not jailData then
+        TriggerClientEvent("chat:addMessage", source, {
+            template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed",
+            args = { id },
+        })
+        return
+    end
+
+    TriggerClientEvent("chat:addMessage", source, {
+        template = "^1[ ! ] ^0Player ^3{0} ^0has ^3{1} ^0minute(s) of jailtime left",
+        args = { id, jailData.time },
+    })
+end, UseAces)
+
+---@diagnostic disable-next-line: missing-parameter
+RegisterCommand("timeleft", function(source, args)
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
 	if not ply then return end
 
-	if not UseAces then
-		if UseOx and not ply.hasGroup(AllowedGroup) or not UseOx and not hasOne(AllowedGroup, ply.getGroup()) then
-			TriggerClientEvent("chat:addMessage", source, {
-				template = "^1[ ! ] ^0You don\'t have permission to use this command",
-			})
-			return
-		end
-	end
-
-	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
-	if not targetPly then
+	local identifier = UseOx and ply.charid or ply.identifier
+	local jailData = jailed[identifier]
+	if not jailData then
 		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0Player ^3{0} ^0is not online",
-			args = { id },
+			template = "^1[ ! ] ^0You are not in jail.",
 		})
 		return
 	end
 
-	local jailData = jailed[UseOx and targetPly.charid or targetPly.identifier]
-	if not jailData then
+	if not jailData.active then
 		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed",
-			args = { id },
+			template = "^1[ ! ] ^0You are not logged in.",
 		})
 		return
 	end
 
 	TriggerClientEvent("chat:addMessage", source, {
-		template = "^1[ ! ] ^0Player ^3{0} ^0has ^3{1} ^0minute(s) of jailtime left",
-		args = { id, jailData.time },
+		template = "^1[ ! ] ^0You have ^3{0} ^0minute(s) of jailtime left",
+		args = { jailData.time },
 	})
-end, UseAces)
+end)
 
 ---@param id number: The player ID of the loaded player.
 RegisterNetEvent("esx:playerLoaded", function(id)
@@ -284,7 +295,6 @@ RegisterNetEvent("esx:playerDropped", function(id)
 end)
 
 ---@param id number: The player ID of the loaded player.
----@param _ any: This parameter is unused in this event handler.
 ---@param charid string | number: The character identifier of the loaded player.
 AddEventHandler("ox:playerLoaded", function(id, _, charid)
 	local jailData = jailed[charid]
@@ -305,7 +315,6 @@ AddEventHandler("ox:playerLoaded", function(id, _, charid)
 end)
 
 ---@param id number: The player ID of the loaded player.
----@param _ any: This parameter is unused in this event handler.
 ---@param charid string | number: The character identifier of the loaded player.
 AddEventHandler("ox:playerLogout", function(id, _, charid)
 	local jailData = jailed[charid]
@@ -453,3 +462,13 @@ CreateThread(function()
 		end
 	end
 end)
+
+---Do not rename this resource or touch this part of the code
+local function initializeResource()
+	assert(GetCurrentResourceName() == "bebo_jail", "^It is required to keep this resource name original, change the folder name back to 'bebo_jail'.^0")
+
+	print("^5[bebo_jail] ^2Resource has been initialized!^0")
+	print("^5[bebo_jail] ^2Admin Jail module is loaded.^0")
+end
+
+MySQL.ready(initializeResource)

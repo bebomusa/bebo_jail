@@ -2,7 +2,7 @@ UseOx = true -- Set 'true' if using ox_core, false if using ESX.
 UseAces = true -- Set 'true' if using ACE Permissions, false otherwise.
 JailedState = "adminjail" -- The default jail state to use when a player is jailed.
 
----@param AllowedGroup table | string: List of allowed groups that have permission to use the provided command.
+---@param AllowedGroup table | string: List of allowed groups that have permission to use the provided commands.
 AllowedGroup = {
     "group.admin",
 }
