@@ -7,6 +7,8 @@ description "Server-side admin jail system"
 version "1.0.2"
 repository "https://github.com/bebomusa/bebo_jail"
 
+shared_script "@ox_lib/init.lua"
+
 server_scripts {
 	"@oxmysql/lib/MySQL.lua",
 	"config.lua",

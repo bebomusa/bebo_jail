@@ -10,12 +10,7 @@ local jailed = {}
 ---@param value any: The value to look for in the table.
 ---@return boolean: Returns true if the value is found in the table, false otherwise.
 local function hasOne(tbl, value)
-	for _, v in ipairs(tbl) do
-		if v == value then
-			return true
-		end
-	end
-	return false
+	return lib.table.contains(tbl, value) or false
 end
 
 ---@param player table | number | string: The player object, player ID, or identifier whose inventory to retrieve.
@@ -23,6 +18,7 @@ end
 local function getInventory(player)
 	local isNotTable = type(player) == "string" or type(player) == "number"
 	player = isNotTable and (UseOx and Ox.GetPlayer(tonumber(player)) or not UseOx and ESX.GetPlayerFromId(source)) or not isNotTable and player or nil
+
 	if not player then return {} end
 
 	local inventory = {}
@@ -43,7 +39,7 @@ RegisterCommand("ajail", function(source, args)
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
 	if not ply or (not UseAces and not (UseOx and ply.hasGroup(AllowedGroup) or not UseOx and hasOne(AllowedGroup, ply.getGroup()))) then
 		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0You don\'t have permission to use this command",
+			template = "^1[ ! ] ^0You don't have permission to use this command",
 		})
 		return
 	end
@@ -71,14 +67,13 @@ RegisterCommand("ajail", function(source, args)
 		Wait(0)
 		newBucket = math.random(1, 999999)
 	end
-
 	routingBuckets[newBucket] = identifier
 
-	local plyPed, closest, jail = GetPlayerPed(id), JailedState, Jails[JailedState]
+	local plyPed, jail = GetPlayerPed(id), Jails[JailedState]
 	local inventory = getInventory(targetPly)
 
 	jailed[identifier] = {
-		jail = closest,
+		jail = JailedState,
 		time = time,
 		inventory = inventory,
 		active = true,
@@ -101,12 +96,7 @@ RegisterCommand("ajail", function(source, args)
 
 	TriggerClientEvent("chat:addMessage", -1, {
 		template = "^1AdmCmd {0} has been admin jailed by {1} for {2} minute(s), reason: {3}",
-		args = {
-			UseOx and targetPly.firstname .. " " .. targetPly.lastname or targetPly.getName(),
-			UseOx and ply.firstname .. " " .. ply.lastname or ply.getName(),
-			time,
-			reason == "" and "Not provided." or reason,
-		},
+		args = { UseOx and targetPly.firstname .. " " .. targetPly.lastname or targetPly.getName(), UseOx and ply.firstname .. " " .. ply.lastname or ply.getName(), time, reason == "" and "Not provided." or reason },
 	})
 end, UseAces)
 
@@ -167,62 +157,59 @@ RegisterCommand("ajailrelease", function(source, args)
 
 	routingBuckets[identifier] = nil
 	jailed[identifier] = nil
+
 	MySQL.query("DELETE FROM jail WHERE identifier = ?", { identifier })
 
 	TriggerClientEvent("chat:addMessage", -1, {
 		template = "^1AdmCmd {0} has been released from admin jail by {1}.",
-		args = {
-			UseOx and targetPly.firstname .. " " .. targetPly.lastname or targetPly.getName(),
-			UseOx and ply.firstname .. " " .. ply.lastname or ply.getName(),
-		},
+		args = { UseOx and targetPly.firstname .. " " .. targetPly.lastname or targetPly.getName(), UseOx and ply.firstname .. " " .. ply.lastname or ply.getName() },
 	})
 end, UseAces)
 
 RegisterCommand("ajailtime", function(source, args)
-    local id = args[1]
-    local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
+	local id = args[1]
+	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
+	if not ply then return end
 
-    if not ply then return end
+	if not UseAces then
+		local allowed = false
 
-    if not UseAces then
-        local allowed = false
+		if UseOx then
+			allowed = ply.hasGroup(AllowedGroup)
+		else
+			allowed = hasOne(AllowedGroup, ply.getGroup())
+		end
 
-        if UseOx then
-            allowed = ply.hasGroup(AllowedGroup)
-        else
-            allowed = hasOne(AllowedGroup, ply.getGroup())
-        end
+		if not allowed then
+			TriggerClientEvent("chat:addMessage", source, {
+				template = "^1[ ! ] ^0You don't have permission to use this command",
+			})
+			return
+		end
+	end
 
-        if not allowed then
-            TriggerClientEvent("chat:addMessage", source, {
-                template = "^1[ ! ] ^0You don\'t have permission to use this command",
-            })
-            return
-        end
-    end
+	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
+	if not targetPly then
+		TriggerClientEvent("chat:addMessage", source, {
+			template = "^1[ ! ] ^0Player ^3{0} ^0is not online",
+			args = { id },
+		})
+		return
+	end
 
-    local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
-    if not targetPly then
-        TriggerClientEvent("chat:addMessage", source, {
-            template = "^1[ ! ] ^0Player ^3{0} ^0is not online",
-            args = { id },
-        })
-        return
-    end
+	local jailData = jailed[UseOx and targetPly.charid or targetPly.identifier]
+	if not jailData then
+		TriggerClientEvent("chat:addMessage", source, {
+			template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed",
+			args = { id },
+		})
+		return
+	end
 
-    local jailData = jailed[UseOx and targetPly.charid or targetPly.identifier]
-    if not jailData then
-        TriggerClientEvent("chat:addMessage", source, {
-            template = "^1[ ! ] ^0Player ^3{0} ^0is not jailed",
-            args = { id },
-        })
-        return
-    end
-
-    TriggerClientEvent("chat:addMessage", source, {
-        template = "^1[ ! ] ^0Player ^3{0} ^0has ^3{1} ^0minute(s) of jailtime left",
-        args = { id, jailData.time },
-    })
+	TriggerClientEvent("chat:addMessage", source, {
+		template = "^1[ ! ] ^0Player ^3{0} ^0has ^3{1} ^0minute(s) of jailtime left",
+		args = { id, jailData.time },
+	})
 end, UseAces)
 
 ---@diagnostic disable-next-line: missing-parameter
@@ -232,6 +219,7 @@ RegisterCommand("timeleft", function(source, args)
 
 	local identifier = UseOx and ply.charid or ply.identifier
 	local jailData = jailed[identifier]
+
 	if not jailData then
 		TriggerClientEvent("chat:addMessage", source, {
 			template = "^1[ ! ] ^0You are not in jail.",
@@ -260,10 +248,13 @@ RegisterNetEvent("esx:playerLoaded", function(id)
 
 	local bucket = 1
 	for k, v in pairs(routingBuckets) do
-		if v == ply.identifier then bucket = k end
+		if v == ply.identifier then
+			bucket = k
+		end
 	end
 
 	local jail = Jails[jailData.jail]
+	---@diagnostic disable-next-line: param-type-mismatch
 	SetPlayerRoutingBucket(id, bucket)
 
 	SetEntityCoords(GetPlayerPed(id), jail.insideCoords.x, jail.insideCoords.y, jail.insideCoords.z, true, false, false, false)
@@ -279,6 +270,7 @@ AddEventHandler("esx:playerLogout", function(id)
 
 	if not jailed[ply.identifier] then return end
 
+	---@diagnostic disable-next-line: param-type-mismatch
 	SetPlayerRoutingBucket(id, 0)
 	Player(id).state:set("jailed", false, true)
 
@@ -302,12 +294,14 @@ AddEventHandler("ox:playerLoaded", function(id, _, charid)
 
 	local bucket = 1
 	for k, v in pairs(routingBuckets) do
-		if v == charid then bucket = k end
+		if v == charid then
+			bucket = k
+		end
 	end
 
 	local jail = Jails[jailData.jail]
+	---@diagnostic disable-next-line: param-type-mismatch
 	SetPlayerRoutingBucket(id, bucket)
-
 	SetEntityCoords(GetPlayerPed(id), jail.insideCoords.x, jail.insideCoords.y, jail.insideCoords.z, true, false, false, false)
 
 	Player(id).state:set("jailed", true, true)
@@ -334,7 +328,9 @@ RegisterNetEvent("txAdmin:events:scheduledRestart", function(eventData)
 	for k, v in pairs(jailed) do
 		local bucket = -1
 		for k2, v2 in pairs(routingBuckets) do
-			if v2 == k then bucket = k2 end
+			if v2 == k then
+				bucket = k2
+			end
 		end
 
 		queries[#queries + 1] = {
@@ -413,7 +409,9 @@ AddEventHandler("onResourceStop", function(resource)
 	for k, v in pairs(jailed) do
 		local bucket = -1
 		for k2, v2 in pairs(routingBuckets) do
-			if v2 == k then bucket = k2 end
+			if v2 == k then
+				bucket = k2
+			end
 		end
 
 		queries[#queries + 1] = {
@@ -435,7 +433,7 @@ end)
 
 CreateThread(function()
 	while true do
-		Wait(60000)
+		Wait(TickTime)
 		for k, v in pairs(jailed) do
 			if v.active then
 				v.time -= 1
@@ -451,7 +449,9 @@ CreateThread(function()
 						Player(id).state:set("jailed", false, true)
 
 						for k2, v2 in pairs(routingBuckets) do
-							if v2 == k then routingBuckets[k2] = nil end
+							if v2 == k then
+								routingBuckets[k2] = nil
+							end
 						end
 
 						jailed[k] = nil
