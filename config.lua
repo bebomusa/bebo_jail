@@ -1,10 +1,5 @@
 UseOx = true -- Set 'true' if using ox_core, false if using ESX.
-UseAces = true -- Set 'true' if using ACE Permissions, false otherwise.
-
----@param AllowedGroup table | string: List of allowed groups that have permission to use the provided commands.
-AllowedGroup = {
-    "",
-}
+UseAces = true -- Leave 'true' and setup ACE Permissions.
 
 ---@type table <string, table>
 ---@param insideCoords vector3: Coordinates inside the jail where the player will be teleported to.

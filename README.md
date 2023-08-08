@@ -6,7 +6,6 @@ A super simple disciplinary measure using state bags and routing buckets to hand
 
 ## Ace
 
-- - Only used if `UseAces` is set `true`.
 - - Be sure to replace `replaceme` with your desired group.
 ### `add_ace group.replaceme command.ajail allow`
 

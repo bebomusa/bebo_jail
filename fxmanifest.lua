@@ -3,11 +3,10 @@ game "gta5"
 
 name "bebo_jail"
 author "BerkieB & Bebo"
-description "Server-side admin jail system"
-version "1.0.2"
+description "Server-side admin jail manager"
+version "1.0.3"
 repository "https://github.com/bebomusa/bebo_jail"
-
-shared_script "@ox_lib/init.lua"
+license "GPL v3"
 
 server_scripts {
 	"@oxmysql/lib/MySQL.lua",

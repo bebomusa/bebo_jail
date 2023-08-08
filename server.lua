@@ -6,13 +6,6 @@ end
 local routingBuckets = {}
 local jailed = {}
 
----@param tbl table: The table to search.
----@param value any: The value to look for in the table.
----@return boolean: Returns true if the value is found in the table, false otherwise.
-local function hasOne(tbl, value)
-	return lib.table.contains(tbl, value) or false
-end
-
 ---@param player table | number | string: The player object, player ID, or identifier whose inventory to retrieve.
 ---@return table: Returns a table representing the player's inventory with item names as keys and item counts as values.
 local function getInventory(player)
@@ -31,18 +24,14 @@ local function getInventory(player)
 end
 
 RegisterCommand("ajail", function(source, args)
-	local id, time, reason = args[1], tonumber(args[2]), table.concat(args, " ", 3)
+	if not UseAces then return print("You set 'UseAces' to 'false', change it back to 'true' and setup ace permissions.") end
 
+	local id, time, reason = args[1], tonumber(args[2]), table.concat(args, " ", 3)
 	if not id or id == "" or not time then return end
 	time = time > 0 and time or 1
 
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
-	if not ply or (not UseAces and not (UseOx and ply.hasGroup(AllowedGroup) or not UseOx and hasOne(AllowedGroup, ply.getGroup()))) then
-		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0You don't have permission to use this command",
-		})
-		return
-	end
+	if not ply then return end
 
 	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
 	if not targetPly then
@@ -101,21 +90,11 @@ RegisterCommand("ajail", function(source, args)
 end, UseAces)
 
 RegisterCommand("ajailrelease", function(source, args)
+	if not UseAces then return print("You set 'UseAces' to 'false', change it back to 'true' and setup ace permissions.") end
+
 	local id = args[1]
-	local admin = false
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
 	if not ply then return end
-
-	if not UseAces then
-		admin = UseOx and ply.hasGroup(AllowedGroup) or not UseOx and hasOne(AllowedGroup, ply.getGroup())
-	end
-
-	if not UseAces and not admin then
-		TriggerClientEvent("chat:addMessage", source, {
-			template = "^1[ ! ] ^0You don't have permission to use this command",
-		})
-		return
-	end
 
 	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
 	if not targetPly then
@@ -158,7 +137,7 @@ RegisterCommand("ajailrelease", function(source, args)
 	routingBuckets[identifier] = nil
 	jailed[identifier] = nil
 
-	MySQL.query("DELETE FROM jail WHERE identifier = ?", { identifier })
+	MySQL.query("DELETE FROM bebo_jail WHERE identifier = ?", { identifier })
 
 	TriggerClientEvent("chat:addMessage", -1, {
 		template = "^1AdmCmd {0} has been released from admin jail by {1}.",
@@ -167,26 +146,11 @@ RegisterCommand("ajailrelease", function(source, args)
 end, UseAces)
 
 RegisterCommand("ajailtime", function(source, args)
+	if not UseAces then return print("You set 'UseAces' to 'false', change it back to 'true' and setup ace permissions.") end
+
 	local id = args[1]
 	local ply = UseOx and Ox.GetPlayer(tonumber(source)) or not UseOx and ESX.GetPlayerFromId(source)
 	if not ply then return end
-
-	if not UseAces then
-		local allowed = false
-
-		if UseOx then
-			allowed = ply.hasGroup(AllowedGroup)
-		else
-			allowed = hasOne(AllowedGroup, ply.getGroup())
-		end
-
-		if not allowed then
-			TriggerClientEvent("chat:addMessage", source, {
-				template = "^1[ ! ] ^0You don't have permission to use this command",
-			})
-			return
-		end
-	end
 
 	local targetPly = UseOx and Ox.GetPlayer(tonumber(id)) or not UseOx and ESX.GetPlayerFromId(id)
 	if not targetPly then
@@ -243,6 +207,8 @@ end)
 ---@param id number: The player ID of the loaded player.
 RegisterNetEvent("esx:playerLoaded", function(id)
 	local ply = ESX.GetPlayerFromId(id)
+	if not ply then return end
+
 	local jailData = jailed[ply.identifier]
 	if not jailData then return end
 
@@ -289,6 +255,9 @@ end)
 ---@param id number: The player ID of the loaded player.
 ---@param charid string | number: The character identifier of the loaded player.
 AddEventHandler("ox:playerLoaded", function(id, _, charid)
+	local ply = Ox.GetPlayer(id)
+	if not ply then return end
+
 	local jailData = jailed[charid]
 	if not jailData then return end
 
@@ -311,6 +280,9 @@ end)
 ---@param id number: The player ID of the loaded player.
 ---@param charid string | number: The character identifier of the loaded player.
 AddEventHandler("ox:playerLogout", function(id, _, charid)
+	local ply = Ox.GetPlayer(id)
+	if not ply then return end
+
 	local jailData = jailed[charid]
 	if not jailData then return end
 
@@ -334,7 +306,7 @@ RegisterNetEvent("txAdmin:events:scheduledRestart", function(eventData)
 		end
 
 		queries[#queries + 1] = {
-			query = "INSERT INTO `jail` (identifier, time, jail, bucket, inventory, jailType) VALUES (:identifier, :time, :jail, :bucket, :inventory, :jailType) ON DUPLICATE KEY UPDATE `time` = :time",
+			query = "INSERT INTO `bebo_jail` (identifier, time, jail, bucket, inventory, jailType) VALUES (:identifier, :time, :jail, :bucket, :inventory, :jailType) ON DUPLICATE KEY UPDATE `time` = :time",
 			values = {
 				identifier = k,
 				time = v.time,
@@ -350,11 +322,10 @@ RegisterNetEvent("txAdmin:events:scheduledRestart", function(eventData)
 	MySQL.transaction(queries)
 end)
 
----@param resource string: The name of the started resource.
 AddEventHandler("onResourceStart", function(resource)
 	if resource ~= GetCurrentResourceName() then return end
 
-	local success, result = pcall(MySQL.query.await, "SELECT * FROM jail")
+	local success, result = pcall(MySQL.query.await, "SELECT * FROM bebo_jail")
 	if success then
 		for i = 1, #result do
 			local data = result[i]
@@ -388,7 +359,7 @@ AddEventHandler("onResourceStart", function(resource)
 	end
 
 	MySQL.query.await(([[
-        CREATE TABLE jail (
+        CREATE TABLE IF NOT EXISTS bebo_jail (
             identifier VARCHAR(255) NOT NULL,
             time INT NOT NULL DEFAULT 99,
             jail LONGTEXT NOT NULL DEFAULT '%s',
@@ -401,7 +372,6 @@ AddEventHandler("onResourceStart", function(resource)
     ]]):format(JailedState))
 end)
 
----@param resource string: The name of the stopped resource.
 AddEventHandler("onResourceStop", function(resource)
 	if resource ~= GetCurrentResourceName() then return end
 
@@ -415,7 +385,7 @@ AddEventHandler("onResourceStop", function(resource)
 		end
 
 		queries[#queries + 1] = {
-			query = "INSERT INTO `jail` (identifier, time, jail, bucket, inventory, jailType) VALUES (:identifier, :time, :jail, :bucket, :inventory, :jailType) ON DUPLICATE KEY UPDATE `time` = :time",
+			query = "INSERT INTO `bebo_jail` (identifier, time, jail, bucket, inventory, jailType) VALUES (:identifier, :time, :jail, :bucket, :inventory, :jailType) ON DUPLICATE KEY UPDATE `time` = :time",
 			values = {
 				identifier = k,
 				time = v.time,
@@ -436,7 +406,9 @@ CreateThread(function()
 		Wait(TickTime)
 		for k, v in pairs(jailed) do
 			if v.active then
+				print("Debug: Processing active jailed player -", k)
 				v.time -= 1
+				print("Debug: Jail time remaining:", v.time)
 				if v.time == 0 then
 					local ply = UseOx and Ox.GetPlayerByFilter({ charid = k }) or not UseOx and ESX.GetPlayerFromIdentifier(k)
 					if ply then
@@ -455,7 +427,7 @@ CreateThread(function()
 						end
 
 						jailed[k] = nil
-						MySQL.query("DELETE FROM jail WHERE identifier = ?", { k })
+						MySQL.query("DELETE FROM bebo_jail WHERE identifier = ?", { k })
 					end
 				end
 			end
