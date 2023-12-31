@@ -1,6 +1,3 @@
-UseOx = true -- Set 'true' if using ox_core, false if using ESX.
-UseAces = true -- Leave 'true' and setup ACE Permissions.
-
 ---@type table <string, table>
 ---@param insideCoords vector3: Coordinates inside the jail where the player will be teleported to.
 ---@param outsideCoords vector3: Coordinates outside the jail where the player will be teleported after release.
