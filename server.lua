@@ -8,14 +8,23 @@ local jailed = {}
 ---@param player table | number | string: The player object, player ID, or identifier whose inventory to retrieve.
 ---@return table: Returns a table representing the player's inventory with item names as keys and item counts as values.
 local function getInventory(player)
-	local notTable = type(player) == "string" or type(player) == "number"
-	player = notTable and (Ox.GetPlayer(tonumber(player)) or not notTable and player or nil)
+	local targetPly = nil
 
-	if not player then return {} end
+	if type(player) == "string" or type(player) == "number" then
+		local ply = tonumber(player)
+		if ply then
+			targetPly = Ox.GetPlayer(ply)
+		end
+	elseif type(player) == "table" then
+		targetPly = player
+	end
+
+	if not targetPly then return {} end -- Return an empty table if player is not found or invalid?
 
 	local inventory = {}
+	local plySrc = targetPly.source
 
-	for _, v in pairs(exports.ox_inventory:GetInventoryItems(player.source)) do
+	for _, v in pairs(exports.ox_inventory:GetInventoryItems(plySrc)) do
 		inventory[v.name] = v.count
 	end
 
