@@ -9,7 +9,7 @@ A super simple disciplinary measure using state bags and routing buckets to hand
 ```
 add_ace group.replaceme command.ajail allow
 add_ace group.replaceme command.ajailrelease allow
-add ace group.replaceme command.ajailtime allow
+add_ace group.replaceme command.ajailtime allow
 ```
 
 ### Commands
